@@ -53,7 +53,9 @@ globalDeps = [
 var currency = "BTC";
 var txnsPerRequest = 200;
 var txnFetchThreshold = 1000;
-var info = {};
+var walletInfo = {};
+var networkInfo = {};
+var blockchainInfo = {};
 var accounts = [];
 var accountContextMenuTarget = null;
 var addressToAccount = {};
@@ -64,7 +66,6 @@ var gotAllTxns = false;
 var txnEpoch = 0;
 var walletIsEncrypted = false;
 var walletIsLocked = false;
-var donationAddress = "16MN18YuXFDyYFja2jHSeBUTgCpUByf5kv";
 
 
 require(globalDeps, function()
@@ -95,14 +96,21 @@ function handleError(context, message, callback)
 
 function refreshGlobalInfo(callback)
 {
-  BCRPC.call("getinfo", [], 0, null, function(context, id, result)
+  BCRPC.call("getwalletinfo", [], 0, null, function(context, id, walletResult)
   {
-    info = result;
-    walletIsEncrypted = result.hasOwnProperty("unlocked_until");
-    walletIsLocked = walletIsEncrypted && !result.unlocked_until;
-    donationAddress = info.testnet ? "mhFwRrjRNt8hYeWtm9LwqCpCgXjF38RJqn" : "16MN18YuXFDyYFja2jHSeBUTgCpUByf5kv";
-    updateGlobalInfo();
-    if (callback) callback();
+    walletInfo = walletResult;
+    walletIsEncrypted = walletInfo.hasOwnProperty("unlocked_until");
+    walletIsLocked = walletIsEncrypted && !walletInfo.unlocked_until;
+    BCRPC.call("getblockchaininfo", [], 0, null, function(context, id, blockchainResult)
+    {
+        blockchainInfo = blockchainResult;
+        BCRPC.call("getnetworkinfo", [], 0, null, function(context, id, networkResult)
+        {
+            networkInfo = networkResult;
+            updateGlobalInfo();
+            if (callback) callback();
+        }, handleError);
+    }, handleError);
   }, handleError);
 }
 
@@ -152,11 +160,11 @@ function refreshTransactionList(callback)
 
 function updateGlobalInfo()
 {
-  dojo.byId("currentWalletBalance").innerText = info.balance + " " + currency;
-  dojo.byId("currentKeypoolSize").innerText = info.keypoolsize;
-  dojo.byId("currentDifficulty").innerText = info.difficulty;
-  dojo.byId("currentBlocks").innerText = info.blocks;
-  dojo.byId("currentConnections").innerText = info.connections;
+  dojo.byId("currentWalletBalance").innerText = walletInfo.balance + " " + currency;
+  dojo.byId("currentKeypoolSize").innerText = walletInfo.keypoolsize;
+  dojo.byId("currentDifficulty").innerText = blockchainInfo.difficulty;
+  dojo.byId("currentBlocks").innerText = blockchainInfo.blocks;
+  dojo.byId("currentConnections").innerText = networkInfo.connections;
   dijit.byId("lockWalletButton").set("disabled", !walletIsEncrypted || walletIsLocked);
 }
 
@@ -168,7 +176,7 @@ function updateAccountList()
   removeRecursively(accountStore, "children", accountStore._arrayOfTopLevelItems);
   accountStore.revert();
   accountStore._arrayOfAllItems = [];
-  var accountRootItem = accountStore.newItem({id: "root", label: "All accounts", balance: info.balance, children: []});
+  var accountRootItem = accountStore.newItem({id: "root", label: "All accounts", balance: walletInfo.balance, children: []});
   for (var i in accounts)
     if (accounts.hasOwnProperty(i))
     {
@@ -437,7 +445,6 @@ function sendBitcoinsFormSubmitHandler(form)
 
 function showDonateDialog()
 {
-  showSendBitcoinsDialog("", donationAddress);
 }
 
 
@@ -731,7 +738,6 @@ function createNewAddressForAccount(account)
   });
 }
 
-
 function lockWallet()
 {
   BCRPC.call("walletlock", [], 0, null, function(context, id, result)
@@ -740,7 +746,6 @@ function lockWallet()
   }, handleError);
 }
 
-
 function refillKeyPool()
 {
   highlevelRPC("keypoolrefill", [], 0, null, function(context, id, result)
@@ -748,7 +753,6 @@ function refillKeyPool()
     refreshGlobalInfo();
   }, handleError);
 }
-
 
 function highlevelRPC(method, params, id, context, callback, errorcallback)
 {
@@ -766,7 +770,6 @@ function highlevelRPC(method, params, id, context, callback, errorcallback)
     else if (errorcallback) errorcallback(context, error);
   });
 }
-
 
 function showUnlockWalletDialog(context, error, callback, errorcallback)
 {
