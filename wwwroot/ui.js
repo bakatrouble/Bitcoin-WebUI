@@ -118,21 +118,22 @@ function refreshGlobalInfo(callback)
 function refreshAccountList(callback)
 {
   dijit.byId("refreshButton").set("disabled", true);
-  BCRPC.call("listaccounts", [0], 0, null, function(context, id, result)
+  BCRPC.call("listlabels", [], 0, null, function(context, id, result)
   {
     BCRPC.call("listreceivedbyaddress", [0, true], 0, null, function(context, id, received)
     {
       refreshGlobalInfo(function()
       {
-        accounts = {}
+        accounts = {};
         for (var i in result)
           if (result.hasOwnProperty(i))
-            accounts[i] = {balance: result[i], addresses: {}};
+            accounts[result[i]] = {balance: 0, addresses: {}};
         for (var i in received)
-          if (received.hasOwnProperty(i) && accounts[received[i].account])
+          if (received.hasOwnProperty(i) && accounts[received[i].label])
           {
-            accounts[received[i].account].addresses[received[i].address] = received[i].amount;
-            addressToAccount[received[i].address] = received[i].account;
+            accounts[received[i].label].addresses[received[i].address] = received[i].amount;
+            accounts[received[i].label].balance += received[i].amount;
+            addressToAccount[received[i].address] = received[i].label;
           }
         updateAccountList();
         refreshTransactionList(function()
@@ -160,7 +161,7 @@ function refreshTransactionList(callback)
 
 function updateGlobalInfo()
 {
-  dojo.byId("currentWalletBalance").innerText = walletInfo.balance + " " + currency;
+  dojo.byId("currentWalletBalance").innerText = walletInfo.balance.toFixed(8) + " " + currency;
   dojo.byId("currentKeypoolSize").innerText = walletInfo.keypoolsize;
   dojo.byId("currentDifficulty").innerText = blockchainInfo.difficulty;
   dojo.byId("currentBlocks").innerText = blockchainInfo.blocks;
@@ -231,7 +232,6 @@ function getMoreTransactions(callback)
   }
   else if (sourceParts[0] == "addr")
   {
-    source = addressToAccount[sourceParts[1]];
     filter = function(txn)
     {
       return txn.address == sourceParts[1];
@@ -249,7 +249,7 @@ function getMoreTransactions(callback)
     for (var i = result.length - 1; i >= 0; i--)
       if (!filter || filter(result[i]))
       {
-        var formattedFee = result[i].fee ? result[i].fee + " " + currency : null;
+        var formattedFee = result[i].fee ? result[i].fee.toFixed(8) + " " + currency : null;
         var txnRow = document.createElement("div");
         txnRow.className = "dijitMenuBar";
         txnRow.style.marginBottom = "-1px";
@@ -257,7 +257,7 @@ function getMoreTransactions(callback)
         row1.style.clear = "both";
         var timeString = dojo.date.locale.format(new Date(result[i].time * 1000));
         var timeField = makeTransactionField(row1, "left", "15ex", false, timeString);
-        var amountField = makeTransactionField(row1, "right", "12ex", true, result[i].amount + " " + currency);
+        var amountField = makeTransactionField(row1, "right", "12ex", true, result[i].amount.toFixed(8) + " " + currency);
         var commentField = makeTransactionField(row1, null, null, true, result[i].comment);
         txnRow.appendChild(row1);
         var row2 = document.createElement("div");
@@ -284,7 +284,7 @@ function createAccountTreeNode(args)
   var treeNode = new dijit._TreeNode(args);
   var balanceNode = document.createElement("div");
   balanceNode.style.cssFloat = "right";
-  balanceNode.appendChild(document.createTextNode(args.item.balance + " " + currency));
+  balanceNode.appendChild(document.createTextNode((args.item.balance && args.item.balance.length ? args.item.balance[0].toFixed(8) : '') + " " + currency));
   treeNode.labelNode.appendChild(balanceNode);
   if (args.item.children) treeNode.labelNode.style.fontWeight = "bold";
   return treeNode;
